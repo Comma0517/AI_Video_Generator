@@ -1,6 +1,9 @@
 const mongoose = require('mongoose');
 
 const ScriptSchema = new mongoose.Schema({
+  title: {
+    type: String,
+  },
   topic: {
     type: String,
   },

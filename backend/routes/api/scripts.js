@@ -1,13 +1,103 @@
 const express = require('express');
+const braintree = require('braintree');
 const router = express.Router();
 require('dotenv').config();
 
 // Load Script model
 const Script = require("../../models/Scripts");
 
+const gateway = new braintree.BraintreeGateway({
+  environment: braintree.Environment.Sandbox,
+  merchantId: 'k94tkn8ndmc3sxbd',
+  publicKey: 'ssj4y6nb6qvmyrxh',
+  privateKey: 'fa7cdf95e5d84423083b848f7079ee90'
+});
+
 // OpenAIApi Migration
 const OpenAI = require('openai');
 const openai = new OpenAI(process.env.OPENAI_API_KEY);
+
+router.get('/get_client_token', (req, res) => {
+  gateway.clientToken.generate({}, (err, response) => {
+    if (err) {
+      res.status(500).send('Error generating token');
+    } else {
+      res.send(response.clientToken);
+    }
+  });
+});
+
+router.post('/process-payment', (req, res) => {  
+  const { paymentMethodNonce, amount } = req.body;
+  gateway.transaction.sale({
+    amount: amount,
+    paymentMethodNonce: paymentMethodNonce,
+    options: {
+      submitForSettlement: true,
+    },
+  }, (err, result) => {
+    if (err) {
+      res.status(500).json({ error: err });
+    } else if (result.success) {
+      res.json({ success: true, transaction: result.transaction });
+    } else {
+      res.status(500).json({ error: result.errors });
+    }
+  });
+});
+
+router.post('/refund', (req, res) => {
+  const { transactionId, amount } = req.body;
+
+  gateway.transaction.refund(transactionId, amount, (err, result) => {
+    if (err) {
+      res.status(500).json({ error: err.message });
+    } else if (result.success) {
+      res.json({ success: true, transaction: result.transaction });
+    } else {
+      res.status(500).json({ error: result.message });
+    }
+  });
+});
+
+router.post('/void', (req, res) => {
+  console.log(req.body)
+  const { transactionId } = req.body;
+
+  gateway.transaction.void(transactionId, (err, result) => {
+    if (err) {
+      res.status(500).json({ error: err.message });
+    } else if (result.success) {
+      res.json({ success: true, transaction: result.transaction });
+    } else {
+      res.status(500).json({ error: result.message });
+    }
+  });
+});
+
+router.get('/check-payment/:transactionId', (req, res) => {
+  console.log(req.params)
+  const transactionId = req.params.transactionId;
+
+  gateway.transaction.find(transactionId, (err, transaction) => {
+    if (err) {
+      // Handle errors (e.g., transaction not found or API errors)
+      res.status(500).json({ error: err.message });
+    } else {
+      // Check the transaction status
+      switch (transaction.status) {
+        case 'submitted_for_settlement':
+        case 'settling':
+        case 'settled':
+          res.json({ success: true, status: transaction.status });
+          break;
+        default:
+          res.json({ success: false, status: transaction.status });
+          break;
+      }
+    }
+  });
+});
 
 // @route GET api/scripts/test
 // @description tests scripts route
@@ -36,13 +126,13 @@ router.get('/:id', (req, res) => {
 // @description add/save script
 // @access Public
 router.post('/', async (req, res) => {
-  const { topic, vibe, video_format, time, cta } = req.body.data;
+  const { title, topic, vibe, video_format, time, cta } = req.body.data;
 
   const prompt = [
     {
       role: 'system',
       content: `
-      Please send me the best video script based on video topic: ${topic}, vibe: ${vibe} and video format: ${video_format}, duration: ${time}. You print each visual's duration time like this style (00:00~00:XX) And at the end of script please add like this word ${cta}
+      Please send me the best video script based on video topic: ${topic}, title: ${title}, vibe: ${vibe} and video format: ${video_format}, duration: ${time}. You print each visual's duration time like this style (00:00~00:XX) And at the end of script please add like this word ${cta}
     `,
     },
   ];
@@ -54,11 +144,22 @@ router.post('/', async (req, res) => {
 
   let str = response.choices[0].message.content;
 
-  req.body.script = str;
+  const script = new Script({
+    title: title,
+    topic: topic,
+    vibe: vibe,
+    video_format: video_format,
+    script: str,
+    time: time,
+    cta: cta,
+  });
 
-  Script.create(req.body)
-    .then(script => res.json({ str: str }))
-    .catch(err => res.status(400).json({ error: 'Unable to add this script' }));
+  script.save()
+    .then(savedScript => res.json({ str: str }))
+    .catch(err => {
+      console.error(err); // Log the error for debugging purposes
+      res.status(400).json({ error: 'Unable to add this script' });
+    });
 });
 
 
@@ -140,7 +241,11 @@ router.post('/getVisualList', async (req, res) => {
     let obj = JSON.parse(response.choices[0].message.function_call.arguments)
 
     let str = obj.role_users;
-    res.json({ str: str })
+    const updatedStr = str.map(obj => ({
+      ...obj,
+      status: "To Review"
+    }));
+    res.json({ str: updatedStr })
   } catch (err) {
     res.status(400).json({ error: 'Unable to add this script' })
   }

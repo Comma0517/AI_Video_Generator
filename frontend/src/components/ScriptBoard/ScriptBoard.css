@@ -1,0 +1,19 @@
+.storyboard {
+    flex-grow: 1;
+    background-color: white;
+    padding: 20px;
+    border-radius: 10px;
+    box-shadow: 0px 2px 4px rgba(0, 0, 0, 0.2);    
+  }
+
+
+  .auto-height-textarea {
+    width: 100%; /* Full width of the container */
+    height: auto; /* Height will be set dynamically */
+    resize: none; /* Remove the resize handle */
+    border: none; /* Remove the border */
+    overflow-y: hidden; /* Hide vertical scrollbar */
+    padding: 0; /* Remove padding if desired */
+    box-shadow: none; /* Remove any box shadows if present */
+    outline: none; /* Remove the outline on focus */
+  }
