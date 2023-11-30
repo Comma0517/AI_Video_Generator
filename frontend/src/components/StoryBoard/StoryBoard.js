@@ -20,7 +20,7 @@ const StoryBoard = () => {
         setVisible(false);
     };
 
-    const [scripts, setScripts] = useState(JSON.parse(localStorage.getItem('scriptboard')));
+    const [scripts, setScripts] = useState(JSON.parse(localStorage.getItem('scriptboard')) || []);
 
     const approveScene = (index) => {
         const newScripts = [...scripts];
@@ -42,7 +42,8 @@ const StoryBoard = () => {
             </Modal>
 
             <div className="grid grid-rows-1 grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-3 xl:grid-cols-4 gap-4 pb-8">
-                {JSON.parse(localStorage.getItem('scriptboard')).map((script, index) => (
+
+                {(JSON.parse(localStorage.getItem('scriptboard'))|| []).map((script, index) => (
                     <Badge.Ribbon key={index} text={script.status} color={script.status !== 'To Review' ? "cyan" : "purple"}>
                     <Card
                         className="shadow-lg h-full storycard"
@@ -81,7 +82,7 @@ const StoryBoard = () => {
                         }
                     }}
                 >Download PDF</Button>
-                {JSON.parse(localStorage.getItem('scriptboard'))[0] ?
+                {(JSON.parse(localStorage.getItem('scriptboard')) || [])[0] ?
                     <div style={{ position: 'absolute', left: '-9999px' }}>
                         <PDFExport paperSize="A4" margin="2cm" ref={pdfExportComponent} fileName="Video Script">
                             <PDFStoryboard data={JSON.parse(localStorage.getItem('scriptboard'))} />

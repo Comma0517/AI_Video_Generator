@@ -41,7 +41,13 @@ const ScriptBoard = () => {
     const pdfExportComponent = React.useRef(null);
 
     useEffect(() => {
-        setScriptJson(JSON.parse(localStorage.getItem('scriptboard')))        
+        const storedScriptJson = localStorage.getItem('scriptboard');
+        if (storedScriptJson) {
+            setScriptJson(JSON.parse(storedScriptJson));
+        } else {
+            // If there's nothing in localStorage, default to an empty array
+            setScriptJson([]);
+        }
     }, []);
 
 
