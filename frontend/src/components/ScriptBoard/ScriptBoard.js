@@ -35,6 +35,7 @@ const ScriptBoard = () => {
     const ref = useRef();
     useResizeObserver(ref);
     const [isModalVisible, setIsModalVisible] = useState(false);
+    const [loading, setLoading] = useState(false);
     const [loding2, setLoding2] = useState(false);
     const [selectedStyle, setSelectedStyle] = useState("Hand Sketch");
     const [scriptJson, setScriptJson] = useState([]);
@@ -52,12 +53,13 @@ const ScriptBoard = () => {
 
 
     const showModal = () => {
+        localStorage.removeItem('StoryImages')
+        localStorage.setItem('ImageStyle', 'Hand Sketch')
         setIsModalVisible(true);
     };
 
     const handleOk = () => {
-        setIsModalVisible(false);
-        history.push("/storyboards");
+        generateImageID()
     };
 
     const handleCancel = () => {
@@ -75,12 +77,12 @@ const ScriptBoard = () => {
     };
 
 
-    const styleButtons = ["Hand Sketch", "Comic Book", "2D Isometric", "Photo Realistic", "Pixel Art", "Sharpee Marker", "3D Model"].map(style => (
+    const styleButtons = ["Hand Sketch", "Comic Book", "2D Isometric", "Photo Realistic", "Pixel Art", "Sharpee Marker", "3D Model"].map((style, index) => (
         <Button
-            key={style}
+            key={index}
             type={selectedStyle === style ? "primary" : "default"}
             className="m-1"
-            onClick={() => handleStyleClick(style)}
+            onClick={() => {handleStyleClick(style); localStorage.setItem('ImageStyle', style);}}
         >
             {style}
         </Button>
@@ -105,6 +107,49 @@ const ScriptBoard = () => {
         }
     }, []);
 
+    const generateImageID = async () => {
+        setLoading(true);
+    
+        const body = {
+            prompt: scriptJson[0].visual + `, Image style is ${localStorage.getItem('ImageStyle')}`,
+            negative_prompt:'ugly, bad anatomy, distorted proportions, dull, unclear, no hands, no fingers, no legs, no eyes, no mouse',
+            height: 512,
+            width: 512,
+            refine: "expert_ensemble_refiner",
+            scheduler: "K_EULER",
+            lora_scale: 0.6,
+            num_outputs: 1,
+            guidance_scale: 7.5,
+            apply_watermark: false,
+            high_noise_frac: 0.8,
+            prompt_strength: 0.8,
+            num_inference_steps: 25
+        };
+    
+        try {
+          const response = await axios.post(`${API_HOST}/api/scripts/text-image`, body);
+    
+          const { imageID } = response.data;
+          const dataBody = {
+            id: imageID
+          };
+    
+          for (let i=0;i<30;i++){
+            await setTimeout(1000);
+            const res = await axios.post(`${API_HOST}/api/scripts/getImageOutput`, dataBody);
+            const { output, message } = res.data;
+            localStorage.setItem('ImageOutput', output);
+            if (message === "succeeded") break;
+          }
+          setIsModalVisible(false);
+          history.push("/storyboards");
+        } catch (error) {
+          console.error('Error generating image:', error);
+        }
+    
+        setLoading(false);
+      };
+
 
     const GenerateScriptBoard = async () => {
         setLoding2(true)
@@ -114,8 +159,6 @@ const ScriptBoard = () => {
             const scriptInfo = {
                 script: JSON.parse(localStorage.getItem('scriptPayload')).script,
             }
-
-            console.log(JSON.parse(localStorage.getItem('scriptPayload')))
 
             const response = await axios.post(`${API_HOST}/api/scripts/getVisualList`, {
                 data: scriptInfo,
@@ -135,12 +178,12 @@ const ScriptBoard = () => {
         <div ref={ref} className="storyboard p-4 flex flex-col space-y-4">
             <Modal
                 title="Tell us what style of images would you like:"
-                visible={isModalVisible}
+                open={isModalVisible}
                 onOk={handleOk}
                 onCancel={handleCancel}
                 footer={[
                     <Button key="submit" type="primary" danger onClick={handleOk}>
-                        Create Now
+                        {!loading?'Create Now':<BeatLoader color="white" size={5} />}
                     </Button>,
                     <Button key="back" type="dashed" danger onClick={handleCancel}>
                         Quit and Start Over
@@ -206,7 +249,7 @@ const ScriptBoard = () => {
                             <PDFTemplate data={scriptJson} />
                         </PDFExport>
                     </div> : <></>}
-                <Button type="primary" danger className="col-span-1 sm:col-span-2 md:col-span-1" onClick={showModal}>I'm happy. Create a Storyboard</Button>
+                {<Button type="primary" danger className="col-span-1 sm:col-span-2 md:col-span-1" onClick={showModal}>I'm happy. Create a Storyboard</Button>}
                 <Button type="default" className="col-span-1 sm:col-span-2 md:col-span-1">Start Over</Button>
             </div>
         </div>

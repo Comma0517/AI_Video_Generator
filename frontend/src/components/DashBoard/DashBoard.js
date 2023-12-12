@@ -36,7 +36,7 @@ const DashBoard = () => {
 
   return (
     <div className="storyboard p-4 ">
-      <Modal title="Create a Script & Storyboard" visible={isModalVisible} onOk={handleOk} onCancel={handleCancel} footer={null} width={300}>
+      <Modal title="Create a Script & Storyboard" open={isModalVisible} onOk={handleOk} onCancel={handleCancel} footer={null} width={300}>
         <p>Please give your script a title first:</p>
         <Input value={titleInput} onChange={(e) => setTitleInput(e.target.value)} placeholder="Enter the title" />
         <Button style={{ marginLeft: 130 }} type="primary" onClick={handleOk} className="mt-4">Save and Next</Button>

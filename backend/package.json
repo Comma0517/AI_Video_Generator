@@ -19,6 +19,8 @@
   },
   "homepage": "https://github.com/nurislam03/MERN_A_to_Z#readme",
   "dependencies": {
+    "aws-sdk": "^2.1509.0",
+    "axios": "^1.6.2",
     "bcryptjs": "^2.4.3",
     "body-parser": "^1.19.0",
     "braintree": "^3.19.0",
@@ -28,6 +30,7 @@
     "express": "^4.17.1",
     "mongoose": "^7.5.4",
     "openai": "^4.11.1",
+    "replicate": "^0.22.0",
     "validation": "0.0.1"
   },
   "devDependencies": {

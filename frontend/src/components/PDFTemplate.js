@@ -1,7 +1,7 @@
 const PDFTemplate = (props) => {
     return (
         <div>
-            <p style={{ fontSize: "24px", color: "#007BFF", fontWeight: "bold" }}>Title: Video script template</p>
+            <p style={{ fontSize: "24px", color: "#007BFF", fontWeight: "bold" }}>Title: {localStorage.getItem('title')}</p>
             <div className='table-responsive'>
                 <table className="table" >
                     <thead style={{ backgroundColor: "#007BFF", color: "#ffffff" }}>

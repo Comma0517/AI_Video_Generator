@@ -84,7 +84,6 @@ const ShowScript = () => {
         });
 
         const { str } = response.data;
-        console.log(str)
         setVisualList(str);
         setVisualFlag(0);
       } catch (error) {

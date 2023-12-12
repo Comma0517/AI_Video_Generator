@@ -1,21 +1,113 @@
 const express = require('express');
 const braintree = require('braintree');
 const router = express.Router();
+const axios = require("axios");
+const AWS = require('aws-sdk')
 require('dotenv').config();
 
 // Load Script model
 const Script = require("../../models/Scripts");
+const Mylibrary = require("../../models/Mylibrary")
+const Replicate = require('replicate');
+
+
+const replicate = new Replicate({
+  auth: process.env.REPLICATE_API_TOKEN,
+});
 
 const gateway = new braintree.BraintreeGateway({
   environment: braintree.Environment.Sandbox,
-  merchantId: 'k94tkn8ndmc3sxbd',
-  publicKey: 'ssj4y6nb6qvmyrxh',
-  privateKey: 'fa7cdf95e5d84423083b848f7079ee90'
+  merchantId: 'qhq7x84kzdv75tw7',
+  publicKey: 'njjfz8799tfh6ctj',
+  privateKey: '561b12bc4e9b8fe05c4521732c559c5a'
+  // merchantId: 'k94tkn8ndmc3sxbd',
+  // publicKey: 'ssj4y6nb6qvmyrxh',
+  // privateKey: 'fa7cdf95e5d84423083b848f7079ee90'
 });
 
 // OpenAIApi Migration
 const OpenAI = require('openai');
 const openai = new OpenAI(process.env.OPENAI_API_KEY);
+
+router.post('/text-image', async (req, res) => {
+
+  const body = {
+    version: process.env.TTL_AI_MODEL_VERSION,
+    input: req.body,
+  };
+
+  const headers = {
+    Authorization: `Token ${process.env.TOKEN_API_KEY}`,
+    "Content-Type": "application/json",
+    "User-Agent": `scribble-node/1.0.0`,
+  };
+
+  try {
+      const response = await axios.post(process.env.BASE_REPLICATE_URL, body, {
+        headers: headers,
+      });
+
+      res.json({ imageID: response.data.id });
+
+  } catch (error) {
+      console.error(error);
+      res.status(500).json({ error: 'Internal server error.', details: error.message });
+  }
+});
+
+router.post('/getImageOutput', async (req, res) => {
+
+  const headers = {
+    Authorization: `Token ${process.env.TOKEN_API_KEY}`,
+    "Content-Type": "application/json",
+  }
+
+  try {
+    const response = await axios.get(`${process.env.BASE_REPLICATE_URL}/${req.body.id}`, {
+        headers: headers
+    });
+
+    console.log(response.data)
+
+    if (response.data.status == 'succeeded'){
+      
+      const s3bucket = new AWS.S3({
+        accessKeyId: process.env.AWS_ACCESS_KEY_ID,
+        secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY,
+        region: process.env.AWS_REGION
+      });
+
+      const raw = await axios.get(response.data.output[0], {
+          responseType: "arraybuffer"
+      })
+
+      let base64 = raw.data.toString("base64")
+      var buf = Buffer.from(base64, 'base64')
+      let ts = Date.now();
+      let date_time = new Date(ts)
+      let date = date_time.getDate()
+      let month = date_time.getMonth() + 1;
+      let year = date_time.getFullYear();
+      const params = {
+          Bucket: process.env.S3_BUCKET_NAME,
+          Key: `TTI/uploads/${year}/${month}/${date}/${ts}_out.png`,
+          Body: buf,
+          ACL: 'public-read',
+          ContentType: `binary/octet-stream`
+      }
+
+      const uploadImage = await s3bucket.upload(params).promise();
+      res.json({ output: uploadImage.Location, message: response.data.status});
+    } else {
+      res.json({ output: '', message: response.data.status});
+    }
+
+  } catch (error) {
+      console.error(error);
+      res.status(500).json({ error: 'Internal server error.', details: error.message });
+  }
+});
+
 
 router.get('/get_client_token', (req, res) => {
   gateway.clientToken.generate({}, (err, response) => {
@@ -98,6 +190,43 @@ router.get('/check-payment/:transactionId', (req, res) => {
     }
   });
 });
+
+router.post('/save_library', (req, res) => {
+  const { user_id, title, style, images, script} = req.body
+  const lib = new Mylibrary({
+    user_id: user_id,
+    title: title,
+    style: style,
+    images: images,
+    script: script,
+  });
+
+  lib.save()
+    .then(saveLibrary => res.json({ success: true }))
+    .catch(err => {
+      console.error(err); // Log the error for debugging purposes
+      res.status(400).json({ error: 'Unable to add this script' });
+    });
+});
+
+router.post('/libraries', (req, res) => {
+  const { userId } = req.body; // Get the user ID from the request body
+
+  if (!userId) {
+    return res.status(400).json({ error: 'No userId provided' });
+  }
+
+  // Find all libraries with the given user ID
+  Mylibrary.find({ user_id: userId })
+    .then(libraries => {
+      res.json(libraries); // Send the found libraries in the response
+    })
+    .catch(err => {
+      console.error(err); // Log the error for debugging purposes
+      res.status(500).json({ error: 'Error fetching libraries' });
+    });
+});
+
 
 // @route GET api/scripts/test
 // @description tests scripts route
