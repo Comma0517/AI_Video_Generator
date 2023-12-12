@@ -16,10 +16,11 @@ const replicate = new Replicate({
 });
 
 const gateway = new braintree.BraintreeGateway({
-  environment: braintree.Environment.Sandbox,
+  environment: braintree.Environment.Production,
   merchantId: 'qhq7x84kzdv75tw7',
   publicKey: 'njjfz8799tfh6ctj',
   privateKey: '561b12bc4e9b8fe05c4521732c559c5a'
+  // environment: braintree.Environment.Sandbox,
   // merchantId: 'k94tkn8ndmc3sxbd',
   // publicKey: 'ssj4y6nb6qvmyrxh',
   // privateKey: 'fa7cdf95e5d84423083b848f7079ee90'
