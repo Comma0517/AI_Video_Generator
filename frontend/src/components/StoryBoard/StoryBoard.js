@@ -8,9 +8,14 @@ import { useSelector } from 'react-redux';
 import { BeatLoader } from 'react-spinners';
 import { PDFExport } from "@progress/kendo-react-pdf";
 import PDFStoryboard from '../PDFStoryboard';
+import { useHistory } from 'react-router-dom';
+import Cookies from 'js-cookie';
 const API_HOST = process.env.REACT_APP_BASE_URL;
 
-const StoryBoard = () => {
+const StoryBoard = () => {    
+    const token = Cookies.get('token');
+    const user_id = Cookies.get('user_id');
+    const history = useHistory();
     const routerStatus = useSelector(state => state);
     const [loading, setLoading] = useState(false);
     const [loading2, setLoading2] = useState(false);
@@ -18,6 +23,13 @@ const StoryBoard = () => {
     const [urlArray, setUrlArray] = useState([]);
     const [modelIndex, setModelIndex] = useState(0);
     const pdfExportComponent = React.useRef(null);
+
+    useEffect(() => {
+        if (token) {} else {
+            history.push("/auth")
+            // alert('Please log in on the site')
+        }
+    }, [token]);
 
     useEffect(() => {
         if (urlArray.length === 0){
@@ -123,7 +135,7 @@ const StoryBoard = () => {
         setLoading2(true);
     
         const body = {
-            user_id: 1,
+            user_id: user_id,
             title: localStorage.getItem('title'),
             style: JSON.parse(localStorage.getItem('scriptPayload')),
             images: JSON.parse(localStorage.getItem('StoryImages')),

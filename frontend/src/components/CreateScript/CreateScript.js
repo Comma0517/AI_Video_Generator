@@ -5,6 +5,7 @@ import 'tailwindcss/tailwind.css';
 import { useSelector } from 'react-redux';
 import { BeatLoader } from 'react-spinners';
 import { useHistory } from 'react-router-dom';
+import Cookies from 'js-cookie';
 const API_HOST = process.env.REACT_APP_BASE_URL;
 const { Option } = Select;
 const { TextArea } = Input;
@@ -12,6 +13,7 @@ const { TextArea } = Input;
 
 
 const CreateScript = () => {
+    const token = Cookies.get('token');
     const history = useHistory();
     const title = localStorage.getItem('title');
     const [script, setScript] = useState();
@@ -23,6 +25,13 @@ const CreateScript = () => {
     const [selectedDate, setSelectedDate] = useState();
     const [loding, setLoding] = useState(false);
     const [loding2, setLoding2] = useState(false);
+
+    useEffect(() => {
+        if (token) {} else {
+            history.push("/auth")
+            // alert('Please log in on the site')
+        }
+    }, [token]);
 
     useEffect(() => {
         if (localStorage.getItem('scriptPayload') !== null) {

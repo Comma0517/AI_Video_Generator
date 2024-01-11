@@ -8,6 +8,7 @@ import { useSelector } from 'react-redux';
 import { useHistory } from 'react-router-dom';
 import { PDFExport } from "@progress/kendo-react-pdf";
 import PDFTemplate from '../PDFTemplate';
+import Cookies from 'js-cookie';
 const API_HOST = process.env.REACT_APP_BASE_URL;
 
 // Custom hook
@@ -31,6 +32,7 @@ function useResizeObserver(ref) {
 
 
 const ScriptBoard = () => {
+    const token = Cookies.get('token');
     const history = useHistory();
     const ref = useRef();
     useResizeObserver(ref);
@@ -40,6 +42,13 @@ const ScriptBoard = () => {
     const [selectedStyle, setSelectedStyle] = useState("Hand Sketch");
     const [scriptJson, setScriptJson] = useState([]);
     const pdfExportComponent = React.useRef(null);
+
+    useEffect(() => {
+        if (token) {} else {
+            history.push("/auth")
+            // alert('Please log in on the site')
+        }
+    }, [token]);
 
     useEffect(() => {
         const storedScriptJson = localStorage.getItem('scriptboard');

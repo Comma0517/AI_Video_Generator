@@ -5,11 +5,23 @@ import { DeleteOutlined, EyeOutlined } from '@ant-design/icons';
 import { Input, Button, Card, Select, Divider } from 'antd';
 import { BeatLoader } from 'react-spinners';
 import 'tailwindcss/tailwind.css';
+import { useHistory } from 'react-router-dom';
+import Cookies from 'js-cookie';
 const API_HOST = process.env.REACT_APP_BASE_URL;
 
-const MyLibrary = () => {
+const MyLibrary = () => {    
+    const token = Cookies.get('token');
+    const user_id = Cookies.get('user_id');
+    const history = useHistory();
     const [libArray, setLibArray] = useState([]);
     const [loading, setLoading] = useState(false);
+
+    useEffect(() => {
+        if (token) {} else {
+            history.push("/auth")
+            // alert('Please log in on the site')
+        }
+    }, [token]);
 
     useEffect(() => {
         getLibraries();
@@ -19,7 +31,7 @@ const MyLibrary = () => {
         setLoading(true)
 
         const body = {
-            userId: 1
+            userId: user_id
         };
 
         try {
@@ -59,7 +71,7 @@ const MyLibrary = () => {
                         className="shadow-lg"
                         title={
                             <div className='flex flex-col'>
-                                <span className="text-l">{truncateString(script.title, 20)}</span>
+                                <span className="text-l">{truncateString(script.title ? script.title : 'Script', 20)}</span>
                                 <span className="text-xs text-gray-400">{convertToReadableDateTime(script.create_date)}</span>
                             </div>
                         }

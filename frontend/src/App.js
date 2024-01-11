@@ -8,6 +8,7 @@ import ScriptBoard from './components/ScriptBoard/ScriptBoard';
 import StoryBoard from './components/StoryBoard/StoryBoard';
 import MyLibrary from './components/MyLibrary.js/MyLibrary';
 import LibraryComponent from './components/libraryComponent';
+import Auth from './components/auth/auth';
 import './App.css';
 
 function App() {
@@ -25,7 +26,8 @@ function App() {
         <Route path="/scriptboards" component={ScriptBoard} />
         <Route path="/storyboards" component={StoryBoard} />
         <Route exact path="/libraries" component={MyLibrary} />
-        <Route path="/libraries/:index" component={LibraryComponent} /> 
+        <Route path="/libraries/:index" component={LibraryComponent} />         
+        <Route path="/auth" component={Auth} />
       </Switch>
     </div>
   </div>

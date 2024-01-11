@@ -28,6 +28,7 @@
     "cors": "^2.8.5",
     "dotenv": "^16.3.1",
     "express": "^4.17.1",
+    "jsonwebtoken": "^9.0.2",
     "mongoose": "^7.5.4",
     "openai": "^4.11.1",
     "replicate": "^0.22.0",

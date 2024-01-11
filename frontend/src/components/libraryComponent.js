@@ -1,9 +1,19 @@
 import React, { useState } from 'react';
 import { Divider, Card, Button, Modal } from 'antd';
 import { EyeOutlined, DownloadOutlined } from '@ant-design/icons';
+import { useHistory } from 'react-router-dom';
 
 const LibraryComponent = (props) => {
-    const source = props.location.state.script;
+    
+    const history = useHistory();
+    let source={title: '', create_date: '', images: null, script: []};
+
+    if (!props.location.state){
+        history.push("/libraries")
+    } else {
+        source = props.location.state.script;
+    }
+
     const [visible, setVisible] = useState(false);
     const [selectedImageIndex, setSelectedImageIndex] = useState(0);
 

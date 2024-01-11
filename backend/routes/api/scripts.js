@@ -1,13 +1,15 @@
 const express = require('express');
-const braintree = require('braintree');
 const router = express.Router();
 const axios = require("axios");
 const AWS = require('aws-sdk')
+const bcrypt = require('bcryptjs');
+const jwt = require('jsonwebtoken');
 require('dotenv').config();
 
 // Load Script model
 const Script = require("../../models/Scripts");
 const Mylibrary = require("../../models/Mylibrary")
+const User = require('../../models/User');
 const Replicate = require('replicate');
 
 
@@ -15,20 +17,98 @@ const replicate = new Replicate({
   auth: process.env.REPLICATE_API_TOKEN,
 });
 
-const gateway = new braintree.BraintreeGateway({
-  environment: braintree.Environment.Production,
-  merchantId: 'qhq7x84kzdv75tw7',
-  publicKey: 'njjfz8799tfh6ctj',
-  privateKey: '561b12bc4e9b8fe05c4521732c559c5a'
-  // environment: braintree.Environment.Sandbox,
-  // merchantId: 'k94tkn8ndmc3sxbd',
-  // publicKey: 'ssj4y6nb6qvmyrxh',
-  // privateKey: 'fa7cdf95e5d84423083b848f7079ee90'
-});
 
 // OpenAIApi Migration
 const OpenAI = require('openai');
 const openai = new OpenAI(process.env.OPENAI_API_KEY);
+
+// Register User
+router.post('/register', async (req, res) => {
+  const { username, email, password, confirmPassword } = req.body;
+
+  // Check if passwords match
+  if (password !== confirmPassword) {
+    return res.json({ code: 400, error: 'Passwords do not match' });
+  }
+
+  try {
+    // Check if user already exists
+    let user1 = await User.findOne({ email });
+    let user2 = await User.findOne({ username });
+    if (user1 || user2) {
+      return res.json({ code: 400, error: 'User already exists' });
+    }
+
+    // Create a new user
+    let user = new User({
+      username,
+      email,
+      password,
+    });
+
+    // Save the user
+    await user.save();
+
+    // Create a token
+    const payload = {
+      user: {
+        id: user.id,
+      },
+    };
+
+    jwt.sign(
+      payload,
+      process.env.JWT_SECRET,
+      { expiresIn: '1h' },
+      (err, token) => {
+        if (err) throw err;
+        res.json({ token: token, user_id: payload.user.id, username: user.username });
+      }
+    );
+  } catch (err) {
+    console.error(err.message);
+    res.status(500).send('Server error');
+  }
+});
+
+// Login User
+router.post('/login', async (req, res) => {
+  const { email, password } = req.body;
+
+  try {
+    // Check for user
+    let user = await User.findOne({ email });
+    if (!user) {
+      return res.json({ code: 400, error: 'Invalid Credentials' });
+    }
+
+    // Check the password
+    const isMatch = await user.comparePassword(password);
+    if (!isMatch) {
+      return res.json({ code: 400, error: 'Password is incorrect' });
+    }
+
+    // Create a token
+    const payload = {
+      user: {
+        id: user.id,
+      },
+    };
+
+    jwt.sign(
+      payload,
+      process.env.JWT_SECRET,
+      { expiresIn: '1h' },
+      (err, token) => {
+        if (err) throw err;
+        res.json({ token: token, user_id: payload.user.id, username: user.username});
+      }
+    );
+  } catch (err) {
+    console.error(err.message);
+    res.status(500).send('Server error');
+  }
+});
 
 router.post('/text-image', async (req, res) => {
 
@@ -107,89 +187,6 @@ router.post('/getImageOutput', async (req, res) => {
       console.error(error);
       res.status(500).json({ error: 'Internal server error.', details: error.message });
   }
-});
-
-
-router.get('/get_client_token', (req, res) => {
-  gateway.clientToken.generate({}, (err, response) => {
-    if (err) {
-      res.status(500).send('Error generating token');
-    } else {
-      res.send(response.clientToken);
-    }
-  });
-});
-
-router.post('/process-payment', (req, res) => {  
-  const { paymentMethodNonce, amount } = req.body;
-  gateway.transaction.sale({
-    amount: amount,
-    paymentMethodNonce: paymentMethodNonce,
-    options: {
-      submitForSettlement: true,
-    },
-  }, (err, result) => {
-    if (err) {
-      res.status(500).json({ error: err });
-    } else if (result.success) {
-      res.json({ success: true, transaction: result.transaction });
-    } else {
-      res.status(500).json({ error: result.errors });
-    }
-  });
-});
-
-router.post('/refund', (req, res) => {
-  const { transactionId, amount } = req.body;
-
-  gateway.transaction.refund(transactionId, amount, (err, result) => {
-    if (err) {
-      res.status(500).json({ error: err.message });
-    } else if (result.success) {
-      res.json({ success: true, transaction: result.transaction });
-    } else {
-      res.status(500).json({ error: result.message });
-    }
-  });
-});
-
-router.post('/void', (req, res) => {
-  console.log(req.body)
-  const { transactionId } = req.body;
-
-  gateway.transaction.void(transactionId, (err, result) => {
-    if (err) {
-      res.status(500).json({ error: err.message });
-    } else if (result.success) {
-      res.json({ success: true, transaction: result.transaction });
-    } else {
-      res.status(500).json({ error: result.message });
-    }
-  });
-});
-
-router.get('/check-payment/:transactionId', (req, res) => {
-  console.log(req.params)
-  const transactionId = req.params.transactionId;
-
-  gateway.transaction.find(transactionId, (err, transaction) => {
-    if (err) {
-      // Handle errors (e.g., transaction not found or API errors)
-      res.status(500).json({ error: err.message });
-    } else {
-      // Check the transaction status
-      switch (transaction.status) {
-        case 'submitted_for_settlement':
-        case 'settling':
-        case 'settled':
-          res.json({ success: true, status: transaction.status });
-          break;
-        default:
-          res.json({ success: false, status: transaction.status });
-          break;
-      }
-    }
-  });
 });
 
 router.post('/save_library', (req, res) => {
