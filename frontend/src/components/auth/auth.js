@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import axios from 'axios';
 import Cookies from 'js-cookie';
 import { useHistory } from 'react-router-dom';
+import { Input, Modal } from 'antd';
 
 const API_HOST = process.env.REACT_APP_BASE_URL;
 
@@ -14,19 +15,31 @@ const Auth = () => {
         password: '',
         confirmPassword: '',
     });
+    const [isModalVisible, setIsModalVisible] = useState(false);
+    const [isModalVisible1, setIsModalVisible1] = useState(false);
+    const [verifyCode, setVerifyCode] = useState('');
+    const [serverVerifyCode, setServerVerifyCode] = useState('');
+    const [formValue, setFormValue] = useState();
+    const [verifyAlert, setVerifyAlert] = useState('');
+    const [emailAlert, setEmailAlert] = useState('');
+    const [forgetPasswordEmail, setForgetPasswordEmail] = useState('');
     const history = useHistory();  
+
+    
+    const baseUrl = `${window.location.protocol}//${window.location.host}`;
 
     const toggleMode = () => {
         setMode(mode === 'login' ? 'signup' : 'login');
     };
 
+    const validateEmailFormat = (email) => {
+        const regex = /^[a-zA-Z0-9._-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,6}$/;
+        return regex.test(email);
+      }
+
     const handleInputChange = (e) => {
         setFormData({ ...formData, [e.target.name]: e.target.value });
     };
-
-    const handleForgotPasswordClick = () => {
-        
-    }
 
     const handleSubmit = async (e) => {
         e.preventDefault();
@@ -44,18 +57,31 @@ const Auth = () => {
                 };
             }
 
-            const endpoint = mode === 'login' ? `${API_HOST}/api/scripts/login` : `${API_HOST}/api/scripts/register`;
+            const endpoint = mode === 'login' ? `${API_HOST}/api/scripts/login` : `${API_HOST}/api/scripts/email-verify`;
             const response = await axios.post(endpoint, dataToSend);
-            if (response.data && response.data.token) {
-                Cookies.set('token', response.data.token, { expires: 1/12 });
-                Cookies.set('user_id', response.data.user_id, { expires: 1/12 });
-                localStorage.setItem('username', response.data.username)
-                history.push('/dashboard');
-            } else {
-                Cookies.remove('token');
-                Cookies.remove('user_id');
-                localStorage.removeItem('username')
-                setErrorAlert(response.data.error);
+            if (response.data){
+                if (mode !== 'login'){
+                    if (response.data.code){
+                        setErrorAlert(response.data.error);
+                    } else {
+                        setErrorAlert('');
+                        setServerVerifyCode(response.data.verifyCode) 
+                        setFormValue(dataToSend)
+                        showModal()   
+                    }   
+                } else {
+                    if (response.data.token) {
+                        Cookies.set('token', response.data.token, { expires: 1/12 });
+                        Cookies.set('user_id', response.data.user_id, { expires: 1/12 });
+                        localStorage.setItem('username', response.data.username)
+                        history.push('/dashboard');
+                    } else {
+                        Cookies.remove('token');
+                        Cookies.remove('user_id');
+                        localStorage.removeItem('username')
+                        setErrorAlert(response.data.error);
+                    }
+                }
             }
         } catch (error) {
             Cookies.remove('token');
@@ -66,8 +92,73 @@ const Auth = () => {
         }
     };
 
+    const showModal = () => {
+        setIsModalVisible(true);
+    };
+
+    const showModal1 = () => {
+        setIsModalVisible1(true);
+    };
+
+    const handleCancel1 = () => {
+        setIsModalVisible1(false);
+    };
+
+    const handleCancel = () => {
+        setIsModalVisible(false);
+    };
+
+    const handleVerifyCodeChange = (e) => {
+        setVerifyCode(e.target.value);
+    };
+
+    const handleVerifySubmit = async () => {
+        if (serverVerifyCode && serverVerifyCode === parseInt(verifyCode)){
+            setVerifyAlert('')
+            const response = await axios.post(`${API_HOST}/api/scripts/register`, formValue);
+            if (response.data.token) {
+                Cookies.set('token', response.data.token, { expires: 1/12 });
+                Cookies.set('user_id', response.data.user_id, { expires: 1/12 });
+                localStorage.setItem('username', response.data.username)
+                history.push('/dashboard');
+            } else {
+                Cookies.remove('token');
+                Cookies.remove('user_id');
+                localStorage.removeItem('username')
+                setErrorAlert(response.data.error);
+            }
+        } else {
+            setVerifyAlert('VerifyCode is not matched.')
+        }
+    };
+
+    const sendResetPassword = async () => {
+        if (validateEmailFormat(forgetPasswordEmail)){
+            setEmailAlert('')
+            const response = await axios.post(`${API_HOST}/api/scripts/forgot-password`, { email: forgetPasswordEmail, baseUrl: baseUrl });
+            if (response.data && response.data.code){
+                setEmailAlert(response.data.error)
+            }
+            handleCancel1();
+        } else {
+            setEmailAlert('Not valid email address.')
+        }
+    }
+
     return (
         <section className="h-screen">
+            <Modal title="Verification Code" visible={isModalVisible} onCancel={handleCancel} onOk={handleVerifySubmit} width={300}>
+                <Input placeholder="Enter verification code" onChange={handleVerifyCodeChange} value={verifyCode} />
+                {verifyAlert?<div className="mt-2">
+                    <p className="text-red-500 text-sm italic">{verifyAlert}</p>
+                </div>:<></>}
+            </Modal>
+            <Modal title="Reset Password" visible={isModalVisible1} onCancel={handleCancel1} onOk={sendResetPassword} width={300}>
+                <Input placeholder="Enter your email address" onChange={(e)=>setForgetPasswordEmail(e.target.value)} value={forgetPasswordEmail} />
+                {emailAlert?<div className="mt-2">
+                    <p className="text-red-500 text-sm italic">{emailAlert}</p>
+                </div>:<></>}
+            </Modal>
             <div className="container mx-auto h-full px-6 py-24">
                 <div className="flex h-full flex-wrap items-center justify-center lg:justify-between">
                     {/* Right column with form */}
@@ -131,15 +222,15 @@ const Auth = () => {
                                 </div>
                             )}
 
-                            <div className="mb-6 flex items-center justify-end">
+                            {mode === 'login' && (<div className="mb-6 flex items-center justify-end">
                                 <a
                                     href="#!    "
                                     className="text-blue-700 text-sm font-medium"
-                                    onClick={handleForgotPasswordClick}
+                                    onClick={showModal1}
                                 >
                                     Forgot password?
                                 </a>
-                            </div>
+                            </div>)}
 
                             {/* Submit button */}
                             <div className='w-full flex justify-end'>

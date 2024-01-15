@@ -65,7 +65,7 @@ const MyLibrary = () => {
             <Divider />
 
             {!loading?<div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 pb-8">
-                {libArray.map((script, index) => (
+                {libArray.length !== 0 ? libArray.map((script, index) => (
                     <Card
                         key={index}
                         className="shadow-lg"
@@ -109,7 +109,7 @@ const MyLibrary = () => {
                             </div>
                         </div>
                     </Card>
-                ))}
+                )): <h1>No Data</h1>}
             </div>:<BeatLoader color="#3C7BFC" size={15} />}
         </div>
 

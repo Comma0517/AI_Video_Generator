@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import 'tailwindcss/tailwind.css';
 import './StoryBoard.css';
 import axios from 'axios';
-import { Divider, Card, Button, Badge, Modal } from 'antd';
+import { Divider, Card, Button, Badge, Modal, Spin } from 'antd';
 import { CheckCircleOutlined, EyeOutlined, DownloadOutlined, SyncOutlined } from '@ant-design/icons';
 import { useSelector } from 'react-redux';
 import { BeatLoader } from 'react-spinners';
@@ -161,12 +161,25 @@ const StoryBoard = () => {
         }
       };
 
+      const handleGenerateImageID = (currentIndex) => {
+        // Retrieve the scripts array from local storage
+        const scripts = JSON.parse(localStorage.getItem('scriptboard')) || [];
+        
+        // Check if the previous script exists and its status is 'To Review'
+        if (currentIndex > 0 && scripts[currentIndex - 1].status === 'To Review') {
+          alert("You have to approve the previous image");
+        } else {
+          generateImageID(scripts[currentIndex].visual, currentIndex);
+        }
+      }
+
     const approveScene = (index) => {
         const newScripts = [...scripts];
         newScripts[index].status = "Approved";
         setScripts(newScripts);
         localStorage.setItem('scriptboard', JSON.stringify(newScripts))
     };
+
     return (
         <div className="storyboard p-4 flex flex-col space-y-4">
             <div>
@@ -191,7 +204,7 @@ const StoryBoard = () => {
                         <div className='flex justify-between mb-4'>
                             <Button icon={<EyeOutlined />} type="link" onClick={()=>{showModal(); setModelIndex(index)}}/>
                             <Button icon={<DownloadOutlined />} type="link" onClick={()=>downloadImage(JSON.parse(localStorage.getItem('StoryImages')) !== null ? JSON.parse(localStorage.getItem('StoryImages'))[index]:'')}/>
-                            {!loading?<Button icon={<SyncOutlined />} type="link" onClick={() =>generateImageID(script.visual, index)}/>: <></>}
+                            {!loading ?<Button icon={<SyncOutlined />} type="link" onClick={() =>handleGenerateImageID(index)}/>: <Spin />}
                         </div>
                         <div className='flex flex-col space-y-4'>
                             <div>

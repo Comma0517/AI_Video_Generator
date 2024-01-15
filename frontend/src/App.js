@@ -8,6 +8,7 @@ import ScriptBoard from './components/ScriptBoard/ScriptBoard';
 import StoryBoard from './components/StoryBoard/StoryBoard';
 import MyLibrary from './components/MyLibrary.js/MyLibrary';
 import LibraryComponent from './components/libraryComponent';
+import ResetPassword from './components/auth/ResetPassword';
 import Auth from './components/auth/auth';
 import './App.css';
 
@@ -27,7 +28,8 @@ function App() {
         <Route path="/storyboards" component={StoryBoard} />
         <Route exact path="/libraries" component={MyLibrary} />
         <Route path="/libraries/:index" component={LibraryComponent} />         
-        <Route path="/auth" component={Auth} />
+        <Route path="/auth" component={Auth} />        
+        <Route path="/reset-password/:token" component={ResetPassword} />
       </Switch>
     </div>
   </div>

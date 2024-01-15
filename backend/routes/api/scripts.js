@@ -4,6 +4,8 @@ const axios = require("axios");
 const AWS = require('aws-sdk')
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
+const sgMail = require('@sendgrid/mail')
+const crypto = require('crypto');
 require('dotenv').config();
 
 // Load Script model
@@ -11,6 +13,9 @@ const Script = require("../../models/Scripts");
 const Mylibrary = require("../../models/Mylibrary")
 const User = require('../../models/User');
 const Replicate = require('replicate');
+
+
+sgMail.setApiKey(process.env.SENDGRID_API_KEY)
 
 
 const replicate = new Replicate({
@@ -23,6 +28,58 @@ const OpenAI = require('openai');
 const openai = new OpenAI(process.env.OPENAI_API_KEY);
 
 // Register User
+router.post('/email-verify', async (req, res) => {
+  const { username, email, password, confirmPassword } = req.body;
+
+  // Check if passwords match
+  if (password !== confirmPassword) {
+    return res.json({ code: 400, error: 'Passwords do not match' });
+  }
+
+  try {
+    // Check if user already exists
+    let user1 = await User.findOne({ username });
+    let user2 = await User.findOne({ email });
+    if (user1) {
+      return res.json({ code: 400, error: 'UserName already exists' });
+    }
+    if (user2) {
+      return res.json({ code: 400, error: 'UserEmail already exists' });
+    }
+
+    let verifyCode = 0;
+    verifyCode = Math.floor(100000 + Math.random() * 900000);
+
+    const msg = {
+      to: [email], // Change to your recipient
+      from: {
+        name: 'Applied storyboard.pro',
+        email: `${process.env.SENDER_EMAIL}`
+      },
+      subject: ` Email Verification Code ${verifyCode} `,
+      text: 'Your Verify code is below — enter it in your browser.',
+      html: '<strong>Your Verify code is below — enter it in your browser.</strong><br><div style="font-size: xx-large; color: blue; text-align: -webkit-center;"><p>' + `${verifyCode}` + '<p/><div/>',
+    }
+
+    sgMail
+      .send(msg)
+      .then((response) => {
+        console.log(response[0].statusCode)
+        console.log(response[0].headers)
+      })
+      .catch((error) => {
+        console.error(error)
+      })
+
+    res.json({ verifyCode: verifyCode });
+
+  } catch (err) {
+    console.error(err.message);
+    res.status(500).send('Server error');
+  }
+});
+
+
 router.post('/register', async (req, res) => {
   const { username, email, password, confirmPassword } = req.body;
 
@@ -33,10 +90,13 @@ router.post('/register', async (req, res) => {
 
   try {
     // Check if user already exists
-    let user1 = await User.findOne({ email });
-    let user2 = await User.findOne({ username });
-    if (user1 || user2) {
-      return res.json({ code: 400, error: 'User already exists' });
+    let user1 = await User.findOne({ username });
+    let user2 = await User.findOne({ email });
+    if (user1) {
+      return res.json({ code: 400, error: 'UserName already exists' });
+    }
+    if (user2) {
+      return res.json({ code: 400, error: 'UserEmail already exists' });
     }
 
     // Create a new user
@@ -62,13 +122,98 @@ router.post('/register', async (req, res) => {
       { expiresIn: '1h' },
       (err, token) => {
         if (err) throw err;
-        res.json({ token: token, user_id: payload.user.id, username: user.username });
+        res.json({ token: token, user_id: payload.user.id, username: user.username});
       }
     );
   } catch (err) {
     console.error(err.message);
     res.status(500).send('Server error');
   }
+});
+
+// forgot-password
+router.post('/forgot-password', async (req, res) => {
+  const { email, baseUrl} = req.body;
+
+  try {
+    // Check for user
+    let user = await User.findOne({ email });
+    if (!user) {
+      return res.json({ code: 400, error: 'User not found.' });
+    }
+
+    const resetToken = crypto.randomBytes(20).toString('hex');
+    user.resetPasswordToken = crypto.createHash('sha256').update(resetToken).digest('hex');
+    user.resetPasswordExpires = Date.now() + 3600000; // 1 hour
+
+    await user.save();
+
+    const resetURL = `${baseUrl}/reset-password/${resetToken}`;
+
+    console.log(resetURL)
+
+    const msg = {
+      to: [email], // Change to your recipient
+      from: {
+        name: 'Applied storyboard.pro',
+        email: `${process.env.SENDER_EMAIL}`
+      },
+      subject: ` Reset your password. `,
+      text: 'Please click on the following link, or paste this into your browser',
+      html: '<strong>You are receiving this email because you have requested the reset of a password. Please click on the following link, or paste this into your browser to complete the process.</strong><br><div style="font-size: large; color: blue; text-align: -webkit-center;"><p>' + `${resetURL}` + '<p/><div/>',
+    }
+
+    sgMail
+      .send(msg)
+      .then((response) => {
+        console.log(response[0].statusCode)
+        console.log(response[0].headers)
+      })
+      .catch((error) => {
+        console.error(error)
+      })
+
+      res.json({ code: 200 });
+  } catch (err) {
+    let user = await User.findOne({ email });
+    user.resetPasswordToken = undefined;
+    user.resetPasswordExpires = undefined;
+    await user.save();
+    console.error(err.message);
+    res.status(500).send('Server error');
+  }
+});
+
+router.post('/reset-password/:token', async (req, res) => {
+  const { token } = req.params;
+  const { password } = req.body;
+
+  try {
+    // Hash the token from the URL
+    const hashedToken = crypto.createHash('sha256').update(token).digest('hex');
+
+    // Find user by the hashed token and check if token has not expired
+    const user = await User.findOne({
+      resetPasswordToken: hashedToken,
+      resetPasswordExpires: { $gt: Date.now() },
+    });
+
+    if (!user) {
+      return res.status(400).send('Token is invalid or has expired.');
+    }
+
+    // Set the new password and clear the reset token fields
+    user.password = password;
+    user.resetPasswordToken = undefined;
+    user.resetPasswordExpires = undefined;
+
+    await user.save();
+
+    res.status(200).send('Password has been reset.');
+  } catch (error) {
+    console.error(error);
+    res.status(500).send('Could not reset password.');
+  }  
 });
 
 // Login User
@@ -101,7 +246,7 @@ router.post('/login', async (req, res) => {
       { expiresIn: '1h' },
       (err, token) => {
         if (err) throw err;
-        res.json({ token: token, user_id: payload.user.id, username: user.username});
+        res.json({ token: token, user_id: payload.user.id, username: user.username });
       }
     );
   } catch (err) {
@@ -124,15 +269,15 @@ router.post('/text-image', async (req, res) => {
   };
 
   try {
-      const response = await axios.post(process.env.BASE_REPLICATE_URL, body, {
-        headers: headers,
-      });
+    const response = await axios.post(process.env.BASE_REPLICATE_URL, body, {
+      headers: headers,
+    });
 
-      res.json({ imageID: response.data.id });
+    res.json({ imageID: response.data.id });
 
   } catch (error) {
-      console.error(error);
-      res.status(500).json({ error: 'Internal server error.', details: error.message });
+    console.error(error);
+    res.status(500).json({ error: 'Internal server error.', details: error.message });
   }
 });
 
@@ -145,13 +290,13 @@ router.post('/getImageOutput', async (req, res) => {
 
   try {
     const response = await axios.get(`${process.env.BASE_REPLICATE_URL}/${req.body.id}`, {
-        headers: headers
+      headers: headers
     });
 
     console.log(response.data)
 
-    if (response.data.status == 'succeeded'){
-      
+    if (response.data.status == 'succeeded') {
+
       const s3bucket = new AWS.S3({
         accessKeyId: process.env.AWS_ACCESS_KEY_ID,
         secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY,
@@ -159,7 +304,7 @@ router.post('/getImageOutput', async (req, res) => {
       });
 
       const raw = await axios.get(response.data.output[0], {
-          responseType: "arraybuffer"
+        responseType: "arraybuffer"
       })
 
       let base64 = raw.data.toString("base64")
@@ -170,27 +315,27 @@ router.post('/getImageOutput', async (req, res) => {
       let month = date_time.getMonth() + 1;
       let year = date_time.getFullYear();
       const params = {
-          Bucket: process.env.S3_BUCKET_NAME,
-          Key: `TTI/uploads/${year}/${month}/${date}/${ts}_out.png`,
-          Body: buf,
-          ACL: 'public-read',
-          ContentType: `binary/octet-stream`
+        Bucket: process.env.S3_BUCKET_NAME,
+        Key: `TTI/uploads/${year}/${month}/${date}/${ts}_out.png`,
+        Body: buf,
+        ACL: 'public-read',
+        ContentType: `binary/octet-stream`
       }
 
       const uploadImage = await s3bucket.upload(params).promise();
-      res.json({ output: uploadImage.Location, message: response.data.status});
+      res.json({ output: uploadImage.Location, message: response.data.status });
     } else {
-      res.json({ output: '', message: response.data.status});
+      res.json({ output: '', message: response.data.status });
     }
 
   } catch (error) {
-      console.error(error);
-      res.status(500).json({ error: 'Internal server error.', details: error.message });
+    console.error(error);
+    res.status(500).json({ error: 'Internal server error.', details: error.message });
   }
 });
 
 router.post('/save_library', (req, res) => {
-  const { user_id, title, style, images, script} = req.body
+  const { user_id, title, style, images, script } = req.body
   const lib = new Mylibrary({
     user_id: user_id,
     title: title,

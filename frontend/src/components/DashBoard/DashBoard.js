@@ -37,6 +37,7 @@ const DashBoard = () => {
     if (titleInput.trim()) {
       dispatch(saveScriptTitle(titleInput));
       localStorage.setItem('title', titleInput);
+      localStorage.removeItem('scriptPayload');
       history.push('/scripts');
       setIsModalVisible(false);
     } else {
